@@ -122,20 +122,63 @@ io.on('connection', (socket) => {
   });
 
   // macOS special keys
+  // socket.on("specialKey", (action) => {
+  //   console.log(`💡 specialKey: ${action}`);
+  //   try {
+  //     switch (action) {
+  //       case "brightnessUp": exec("osascript -e 'tell application \"System Events\" to key code 144'"); break;
+  //       case "brightnessDown": exec("osascript -e 'tell application \"System Events\" to key code 145'"); break;
+  //       case "missionControl": exec("open -a 'Mission Control'"); break;
+  //       case "spotlightSearch": exec(`osascript -e 'tell application "System Events" to keystroke " " using {command down}'`); break;
+  //       case "volumeUp": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) + 5)'`); break;
+  //       case "volumeDown": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) - 5)'`); break;
+  //       default: console.log("Unhandled special key:", action);
+  //     }
+  //   } catch (err) {
+  //     console.error("specialKey error:", err.message);
+  //   }
+  // });
+
+  // macOS special keys
   socket.on("specialKey", (action) => {
     console.log(`💡 specialKey: ${action}`);
     try {
       switch (action) {
-        case "brightnessUp": exec("osascript -e 'tell application \"System Events\" to key code 144'"); break;
-        case "brightnessDown": exec("osascript -e 'tell application \"System Events\" to key code 145'"); break;
-        case "missionControl": exec("open -a 'Mission Control'"); break;
-        case "spotlightSearch": exec(`osascript -e 'tell application "System Events" to keystroke " " using {command down}'`); break;
-        case "mute": exec(`osascript -e 'set curMuted to output muted of (get volume settings)
-          if curMuted then set volume without output muted
-          else set volume with output muted end if'`); break;
-        case "volumeUp": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) + 10)'`); break;
-        case "volumeDown": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) - 10)'`); break;
-        default: console.log("Unhandled special key:", action);
+        case "brightnessUp":
+          exec("osascript -e 'tell application \"System Events\" to key code 144'");
+          break;
+        case "brightnessDown":
+          exec("osascript -e 'tell application \"System Events\" to key code 145'");
+          break;
+        case "missionControl":
+          exec("open -a 'Mission Control'");
+          break;
+        case "spotlightSearch":
+          exec(`osascript -e 'tell application "System Events" to keystroke " " using {command down}'`);
+          break;
+
+        case "mute":
+          exec(`osascript -e 'set volume output muted true'`, (err) => {
+            if (err) console.error("Mute error:", err);
+          });
+          break;
+
+        case "unmute":
+          exec(`osascript -e 'set volume output muted false'`, (err) => {
+            if (err) console.error("Unmute error:", err);
+          });
+          break;
+
+        case "volumeUp":
+          exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) + 5)'`);
+          break;
+
+        case "volumeDown":
+          exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) - 5)'`);
+          break;
+
+        default:
+          console.log("Unhandled special key:", action);
       }
     } catch (err) {
       console.error("specialKey error:", err.message);
