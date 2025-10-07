@@ -11,11 +11,11 @@ export default function Trackpad({ socket }) {
     if (!pad || !scroll || !socket) return;
 
     // ===== Cursor Control =====
-    let pointerActive = false;
+    let activePointerId = null;
     let startX = 0, startY = 0, lastX = 0, lastY = 0;
     let moved = false;
     let startTime = 0;
-    let clickLock = false; // Prevents left click after right click
+    let clickLock = false;
 
     const getPos = (e) => ({
       x: e.clientX ?? e.touches?.[0]?.clientX,
@@ -23,38 +23,46 @@ export default function Trackpad({ socket }) {
     });
 
     const onDown = (e) => {
+      console.log("pointerdown", e.pointerId, { activePointerId, clickLock });
       e.preventDefault();
       if (clickLock) return;
+      if (activePointerId !== null) return;
+      activePointerId = e.pointerId;
+
       const { x, y } = getPos(e);
-      pointerActive = true;
       moved = false;
       startTime = Date.now();
       startX = lastX = x;
       startY = lastY = y;
+
       pad.setPointerCapture?.(e.pointerId);
     };
 
     const onMove = (e) => {
+      console.log("pointermove", e.pointerId, { activePointerId });
+      if (activePointerId !== e.pointerId || !socket || socket.disconnected || clickLock) return;
       e.preventDefault();
-      if (!pointerActive || !socket || socket.disconnected || clickLock) return;
+
       const { x, y } = getPos(e);
       const dx = x - lastX;
       const dy = y - lastY;
+
       if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
         socket.emit("move", { dx: dx * 1.5, dy: dy * 1.5 });
         moved = true;
       }
+
       lastX = x;
       lastY = y;
     };
 
     const onUp = (e) => {
+      console.log("pointerup", e.pointerId, { activePointerId, moved, clickLock });
+      if (activePointerId !== e.pointerId) return;
+      activePointerId = null;
       e.preventDefault();
-      if (clickLock) return;
-      pointerActive = false;
-      const duration = Date.now() - startTime;
 
-      // Treat as click if short + not moved
+      const duration = Date.now() - startTime;
       if (!moved && duration < 250) {
         const { x, y } = getPos(e);
         const rect = pad.getBoundingClientRect();
@@ -63,12 +71,14 @@ export default function Trackpad({ socket }) {
           y > rect.bottom - rect.height * 0.3;
 
         if (isRightClickZone) {
+          console.log("Right-click triggered");
           socket.emit("rightClick");
           setFlash(true);
           clickLock = true;
           setTimeout(() => (clickLock = false), 200);
           setTimeout(() => setFlash(false), 150);
         } else {
+          console.log("Left-click triggered");
           socket.emit("click");
         }
       }
@@ -81,27 +91,30 @@ export default function Trackpad({ socket }) {
     pad.addEventListener("pointerleave", onUp);
 
     // ===== Scroll Strip =====
-    let scrolling = false;
-    let scrollLastY = 0; // ✅ renamed from lastY
+    let scrollPointerId = null;
+    let lastScrollY = 0;
 
     const onScrollDown = (e) => {
+      console.log("scroll pointerdown", e.pointerId, { scrollPointerId });
       e.preventDefault();
-      scrolling = true;
-      scrollLastY = e.clientY ?? e.touches?.[0]?.clientY;
+      if (scrollPointerId !== null) return;
+      scrollPointerId = e.pointerId;
+      lastScrollY = e.clientY ?? e.touches?.[0]?.clientY;
     };
 
     const onScrollMove = (e) => {
-      if (!scrolling || !socket || socket.disconnected) return;
+      if (scrollPointerId !== e.pointerId || !socket || socket.disconnected) return;
       e.preventDefault();
       const y = e.clientY ?? e.touches?.[0]?.clientY;
-      const dy = y - scrollLastY;
-      if (Math.abs(dy) > 0) socket.emit("scroll", { dy: dy * -1 });
-      scrollLastY = y;
+      const dy = y - lastScrollY;
+      if (Math.abs(dy) > 0) socket.emit("scroll", { dy: -dy });
+      lastScrollY = y;
     };
 
     const onScrollUp = (e) => {
+      if (scrollPointerId !== e.pointerId) return;
+      scrollPointerId = null;
       e.preventDefault();
-      scrolling = false;
     };
 
     scroll.addEventListener("pointerdown", onScrollDown);
@@ -127,12 +140,10 @@ export default function Trackpad({ socket }) {
 
   return (
     <div className="flex justify-center items-center w-full mt-4">
-      {/* Main Trackpad */}
       <div
         ref={padRef}
         className="relative w-[75%] h-[60vh] bg-gray-100 border-2 border-gray-300 rounded-l-2xl select-none touch-none overflow-hidden"
       >
-        {/* Right-click zone highlight */}
         <div
           className={`absolute bottom-0 right-0 w-[30%] h-[30%] rounded-br-2xl pointer-events-none transition-all duration-150 ${
             flash ? "bg-blue-400 bg-opacity-60" : "bg-blue-200 bg-opacity-30"
@@ -144,15 +155,11 @@ export default function Trackpad({ socket }) {
           </span>
         </div>
       </div>
-
-      {/* Scroll Strip */}
       <div
         ref={scrollRef}
         className="w-[15%] h-[60vh] bg-gray-200 border-t-2 border-b-2 border-r-2 border-gray-300 rounded-r-2xl select-none touch-none flex items-center justify-center"
       >
-        <span className="text-xs text-gray-500 opacity-60 -rotate-90">
-          Scroll
-        </span>
+        <span className="text-xs text-gray-500 opacity-60 -rotate-90">Scroll</span>
       </div>
     </div>
   );
