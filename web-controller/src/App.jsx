@@ -2,9 +2,10 @@ import { useState } from "react";
 import { useSocket } from "./hooks/useSocket";
 import Trackpad from "./components/Trackpad";
 import ConnectionPanel from "./components/ConnectionPanel";
+import Keyboard from "./components/Keyboard";
 
 export default function App() {
-  const [server, setServer] = useState("http://10.200.252.238:3000");
+  const [server, setServer] = useState("http://10.200.240.229:3000");
   const [token, setToken] = useState("your_secure_token_here");
 
   const { socket, connected, connect } = useSocket(server, token);
@@ -23,6 +24,8 @@ export default function App() {
       />
 
       <Trackpad socket={socket} />
+
+      <Keyboard socket={socket} />
     </div>
   );
 }

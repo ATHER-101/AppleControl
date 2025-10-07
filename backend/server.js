@@ -33,20 +33,27 @@ io.on('connection', (socket) => {
   socket.on('click', () => robot.mouseClick('left'));
   socket.on('rightClick', () => robot.mouseClick('right'));
   socket.on('doubleClick', () => robot.mouseClick('left', true));
+  socket.on("scroll", ({ dy = 0 }) => {
+    try {
+      robot.scrollMouse(0, dy);
+    } catch (err) {
+      console.error("scroll error:", err);
+    }
+  });
 
   // Keyboard events
   socket.on("keyTap", (key, modifiers = []) => {
-    try { robot.keyTap(key, modifiers); } 
+    try { robot.keyTap(key, modifiers); }
     catch (err) { console.error("keyTap error:", key, modifiers, err); }
   });
 
   socket.on("keyDown", (key) => {
-    try { robot.keyToggle(key, "down"); } 
+    try { robot.keyToggle(key, "down"); }
     catch (err) { console.error("keyDown error:", err); }
   });
 
   socket.on("keyUp", (key) => {
-    try { robot.keyToggle(key, "up"); } 
+    try { robot.keyToggle(key, "up"); }
     catch (err) { console.error("keyUp error:", err); }
   });
 
