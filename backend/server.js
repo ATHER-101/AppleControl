@@ -112,6 +112,15 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on("toggleCapsLock", () => {
+    try {
+      exec(`osascript -e 'tell application "System Events" to key code 57'`);
+      console.log("🟢 Caps Lock toggled");
+    } catch (err) {
+      console.error("❌ CapsLock toggle error:", err);
+    }
+  });
+
   // macOS special keys
   socket.on("specialKey", (action) => {
     console.log(`💡 specialKey: ${action}`);
