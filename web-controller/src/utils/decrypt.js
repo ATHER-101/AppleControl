@@ -1,17 +1,12 @@
-// utils/decrypt.js
-import CryptoJS from "crypto-js";
-
-export function decryptData(encryptedString, keyBase64, ivBase64) {
+export function decryptQRContent(encrypted) {
   try {
-    const [encryptedData, ivString] = encryptedString.split(".");
-    const iv = CryptoJS.enc.Base64.parse(ivBase64 || ivString);
-    const key = CryptoJS.enc.Base64.parse(keyBase64);
-
-    const decrypted = CryptoJS.AES.decrypt(encryptedData, key, { iv });
-    const jsonStr = decrypted.toString(CryptoJS.enc.Utf8);
-    return JSON.parse(jsonStr);
+    // If using Base64, simple decode:
+    const decoded = atob(encrypted);
+    const [server, token] = decoded.split("|");
+    if (!server || !token) throw new Error("Invalid QR content");
+    return { server, token };
   } catch (err) {
-    console.error("❌ Failed to decrypt QR:", err);
-    throw new Error("Invalid QR or key");
+    console.error("Failed to decrypt QR:", err);
+    return null;
   }
 }
