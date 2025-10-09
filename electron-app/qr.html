@@ -15,9 +15,7 @@
     height: 100vh;
     margin: 0;
   }
-  h2 {
-    margin: 0 0 20px 0;
-  }
+  h2 { margin: 0 0 20px 0; }
   #qr {
     padding: 10px;
     background: #fff;
@@ -30,8 +28,6 @@
     border-radius: 10px;
     text-align: center;
     font-size: 16px;
-    line-height: 1.5;
-    color: #fff;
     width: 300px;
     word-wrap: break-word;
   }
@@ -49,14 +45,14 @@
   const canvas = document.getElementById('qr');
 
   ipcRenderer.on('qr-data', (event, data) => {
-    // Render QR code
-    QRCode.toCanvas(canvas, JSON.stringify(data), { width: 250 });
+    // Render encrypted QR
+    QRCode.toCanvas(canvas, data.qr, { width: 250 });
 
-    // Show connection info below QR
+    // Show readable info below
     infoDiv.innerHTML = `
-      <strong>IP:</strong> ${data.ip}<br>
-      <strong>Port:</strong> ${data.port}<br>
-      <strong>Secret:</strong> ${data.secret}
+      <strong>IP:</strong> ${data.display.ip}<br>
+      <strong>Port:</strong> ${data.display.port}<br>
+      <strong>Secret:</strong> ${data.display.secret}
     `;
   });
 </script>
