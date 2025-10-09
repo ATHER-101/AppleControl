@@ -12,22 +12,6 @@ require('dotenv').config();
 
 let tray, server, io, qrWindow;
 
-// ------------------------------
-// 🔐 ENCRYPTION HELPERS
-// ------------------------------
-const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY || '12345678901234567890123456789012', 'utf8');
-
-function encryptData(data) {
-  const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
-  let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'base64');
-  encrypted += cipher.final('base64');
-  return `${encrypted}.${iv.toString('base64')}`;
-}
-
-// ------------------------------
-// ⚙️ LOGGING (dev only)
-// ------------------------------
 function log(...args) {
   if (!app.isPackaged) console.log(...args);
 }
@@ -60,9 +44,7 @@ async function stopServer() {
         io = null;
         resolve();
       });
-    } else {
-      resolve();
-    }
+    } else resolve();
   });
 }
 
@@ -75,17 +57,6 @@ async function startServer() {
   const expressApp = express();
   server = http.createServer(expressApp);
   io = new Server(server, { cors: { origin: '*' } });
-
-  const keyMap = {
-    'caps_lock': 'capslock', 'option': 'alt', 'command': 'command',
-    'control': 'control', 'shift': 'shift', 'fn': null,
-    'delete': 'delete', 'backspace': 'backspace', 'left': 'left',
-    'right': 'right', 'up': 'up', 'down': 'down', 'enter': 'enter',
-    'space': 'space', 'tab': 'tab', 'esc': 'escape',
-  };
-  const modifierMap = { 'shift': 'shift', 'control': 'control', 'option': 'alt', 'command': 'command' };
-  const normalizeKey = (key) => (keyMap[key?.toLowerCase()] || key?.toLowerCase());
-  const normalizeModifiers = (mods = []) => mods.map(m => modifierMap[m.toLowerCase()]).filter(Boolean);
 
   io.use((socket, next) => {
     const token = socket.handshake.auth?.token || socket.handshake.query?.token;
@@ -103,52 +74,19 @@ async function startServer() {
     socket.on('rightClick', () => robot.mouseClick('right'));
     socket.on('doubleClick', () => robot.mouseClick('left', true));
     socket.on('scroll', ({ dy = 0 }) => robot.scrollMouse(0, dy));
-    socket.on("keyTap", (key, modifiers = []) => {
-      const normKey = normalizeKey(key);
-      const normMods = normalizeModifiers(modifiers);
-      if (normKey) robot.keyTap(normKey, normMods);
-    });
-    socket.on("keyDown", (key) => { const normKey = normalizeKey(key); if (normKey) robot.keyToggle(normKey, "down"); });
-    socket.on("keyUp", (key) => { const normKey = normalizeKey(key); if (normKey) robot.keyToggle(normKey, "up"); });
-    socket.on("toggleCapsLock", () => exec(`osascript -e 'tell application "System Events" to key code 57'`));
-    socket.on("specialKey", (action) => {
-      try {
-        switch (action) {
-          case "brightnessUp": exec("osascript -e 'tell application \"System Events\" to key code 144'"); break;
-          case "brightnessDown": exec("osascript -e 'tell application \"System Events\" to key code 145'"); break;
-          case "missionControl": exec("open -a 'Mission Control'"); break;
-          case "spotlightSearch": exec(`osascript -e 'tell application \"System Events\" to keystroke \" \" using {command down}'`); break;
-          case "mute": exec(`osascript -e 'set volume output muted true'`); break;
-          case "unmute": exec(`osascript -e 'set volume output muted false'`); break;
-          case "volumeUp": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) + 5)'`); break;
-          case "volumeDown": exec(`osascript -e 'set volume output volume ((output volume of (get volume settings)) - 5)'`); break;
-        }
-      } catch (err) { log(`❌ specialKey error: ${err.message}`); }
-    });
     socket.on('disconnect', () => log(`❌ Client disconnected: ${socket.id}`));
   });
 
   expressApp.get('/status', (req, res) => res.json({ ok: true, port: dynamicPort }));
 
-  try {
-    await new Promise((resolve, reject) => {
-      server.listen(dynamicPort, '0.0.0.0')
-        .once('listening', resolve)
-        .once('error', reject);
-    });
-  } catch (err) {
-    if (err.code === 'EADDRINUSE') {
-      log(`⚠️ Port ${dynamicPort} busy — searching for next available...`);
-      dynamicPort = await getAvailablePort(dynamicPort + 1);
-      await new Promise((resolve) => server.listen(dynamicPort, '0.0.0.0', resolve));
-    } else {
-      throw err;
-    }
-  }
+  await new Promise((resolve, reject) => {
+    server.listen(dynamicPort, '0.0.0.0')
+      .once('listening', resolve)
+      .once('error', reject);
+  });
 
   log(`🖱️ Server running on port ${dynamicPort}`);
   log(`🔐 Token: ${dynamicToken}`);
-
   showNotification(`Server started on port ${dynamicPort}`);
 }
 
@@ -173,13 +111,14 @@ function openQRWindow() {
 
     const localIP = getLocalIP();
     const payload = { ip: localIP, port: dynamicPort, secret: dynamicToken };
-    const encryptedQR = encryptData(payload);
+    const qrData = Buffer.from(JSON.stringify(payload)).toString('base64');
 
     qrWindow.webContents.send('qr-data', {
-      qr: encryptedQR,
+      qr: qrData,
       display: payload
     });
   });
+
   qrWindow.on('closed', () => (qrWindow = null));
 }
 
@@ -206,17 +145,16 @@ function createTray() {
     {
       label: 'Restart Server',
       click: async () => {
-        log('🔄 Restarting server...');
         await startServer();
         showNotification(`Server restarted on port ${dynamicPort}`);
 
         if (qrWindow && !qrWindow.isDestroyed()) {
           const localIP = getLocalIP();
           const payload = { ip: localIP, port: dynamicPort, secret: dynamicToken };
-          const encryptedQR = encryptData(payload);
+          const qrData = Buffer.from(JSON.stringify(payload)).toString('base64');
 
           qrWindow.webContents.send('qr-data', {
-            qr: encryptedQR,
+            qr: qrData,
             display: payload
           });
         }
