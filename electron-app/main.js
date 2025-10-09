@@ -1,127 +1,102 @@
-// main.js
-const { app, BrowserWindow, Menu, Tray, nativeImage, Notification } = require('electron');
+const { app, BrowserWindow, Menu, Tray, nativeImage, ipcMain } = require('electron');
 const path = require('path');
-const crypto = require('crypto');
-const net = require('net');
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const robot = require('@jitsi/robotjs');
-const { exec } = require('child_process');
-require('dotenv').config();
+const { spawn } = require('child_process');
 
-let tray, server, io, qrWindow;
+let tray, serverProcess, qrWindow, logWindow;
 
-function log(...args) {
-  if (!app.isPackaged) console.log(...args);
-}
+// Store logs
+let logs = [];
 
-// ------------------------------
-// ⚡ SERVER CREATION HELPERS
-// ------------------------------
-async function getAvailablePort(startPort = 3000) {
-  const findPort = (port) =>
-    new Promise((resolve) => {
-      const tester = net
-        .createServer()
-        .once('error', () => resolve(findPort(port + 1)))
-        .once('listening', () => tester.close(() => resolve(port)))
-        .listen(port);
-    });
-  return await findPort(startPort);
-}
+// SERVER MANAGEMENT
+function startServer() {
+  const serverPath = path.join(__dirname, 'server.js');
+  serverProcess = spawn(process.execPath, [serverPath], { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
 
-let dynamicPort;
-let dynamicToken;
+  serverProcess.stdout.on('data', (data) => {
+    const message = data.toString().trim();
+    logs.push(message);
+    if (logWindow) logWindow.webContents.send('server-log', message);
+  });
 
-async function stopServer() {
-  return new Promise((resolve) => {
-    if (server) {
-      log('🛑 Stopping existing server...');
-      server.close(() => {
-        log('✅ Server stopped');
-        server = null;
-        io = null;
-        resolve();
-      });
-    } else resolve();
+  serverProcess.stderr.on('data', (data) => {
+    const message = `❌ ${data.toString().trim()}`;
+    logs.push(message);
+    if (logWindow) logWindow.webContents.send('server-log', message);
+  });
+
+  serverProcess.on('exit', (code) => {
+    const msg = `Server exited with code ${code}`;
+    logs.push(msg);
+    if (logWindow) logWindow.webContents.send('server-status', msg);
   });
 }
 
-async function startServer() {
-  await stopServer();
-
-  dynamicPort = await getAvailablePort(3000);
-  dynamicToken = crypto.randomBytes(16).toString('hex');
-
-  const expressApp = express();
-  server = http.createServer(expressApp);
-  io = new Server(server, { cors: { origin: '*' } });
-
-  io.use((socket, next) => {
-    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
-    if (token === dynamicToken) return next();
-    return next(new Error('Unauthorized'));
-  });
-
-  io.on('connection', (socket) => {
-    log(`✅ Client connected: ${socket.id}`);
-    socket.on('move', ({ dx = 0, dy = 0 }) => {
-      const pos = robot.getMousePos();
-      robot.moveMouse(Math.round(pos.x + dx), Math.round(pos.y + dy));
-    });
-    socket.on('click', () => robot.mouseClick('left'));
-    socket.on('rightClick', () => robot.mouseClick('right'));
-    socket.on('doubleClick', () => robot.mouseClick('left', true));
-    socket.on('scroll', ({ dy = 0 }) => robot.scrollMouse(0, dy));
-    socket.on('disconnect', () => log(`❌ Client disconnected: ${socket.id}`));
-  });
-
-  expressApp.get('/status', (req, res) => res.json({ ok: true, port: dynamicPort }));
-
-  await new Promise((resolve, reject) => {
-    server.listen(dynamicPort, '0.0.0.0')
-      .once('listening', resolve)
-      .once('error', reject);
-  });
-
-  log(`🖱️ Server running on port ${dynamicPort}`);
-  log(`🔐 Token: ${dynamicToken}`);
-  showNotification(`Server started on port ${dynamicPort}`);
+function restartServer() {
+  if (serverProcess) serverProcess.kill();
+  setTimeout(startServer, 1000);
 }
 
-// ------------------------------
-// 🪟 QR WINDOW
-// ------------------------------
+// TRAY
+function createTray() {
+  const trayIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray-iconTemplate.png'));
+  tray = new Tray(trayIcon);
+
+  const contextMenu = Menu.buildFromTemplate([
+    { label: 'Show QR Code', click: openQRWindow },
+    { label: 'Server Logs', click: openLogWindow },
+    { label: 'Restart Server', click: restartServer },
+    { type: 'separator' },
+    { label: 'Quit', click: () => app.quit() }
+  ]);
+
+  tray.setToolTip('Mac Remote Server');
+  tray.setContextMenu(contextMenu);
+}
+
+// QR CODE WINDOW
 function openQRWindow() {
   if (qrWindow) return qrWindow.focus();
-
   qrWindow = new BrowserWindow({
     width: 400,
-    height: 520,
+    height: 500,
     resizable: false,
     show: false,
     backgroundColor: '#1e1e2f',
     webPreferences: { nodeIntegration: true, contextIsolation: false }
   });
-
   qrWindow.loadFile(path.join(__dirname, 'qr.html'));
   qrWindow.once('ready-to-show', () => {
     qrWindow.show();
-
-    const localIP = getLocalIP();
-    const payload = { ip: localIP, port: dynamicPort, secret: dynamicToken };
-    const qrData = Buffer.from(JSON.stringify(payload)).toString('base64');
-
+    // Send QR data after window is ready
     qrWindow.webContents.send('qr-data', {
-      qr: qrData,
-      display: payload
+      ip: getLocalIP(),
+      port: process.env.PORT || 3000,
+      secret: process.env.PAIR_TOKEN || 'dev-token'
     });
   });
-
-  qrWindow.on('closed', () => (qrWindow = null));
+  qrWindow.on('closed', () => { qrWindow = null; });
 }
 
+// LOG WINDOW
+function openLogWindow() {
+  if (logWindow) return logWindow.focus();
+  logWindow = new BrowserWindow({
+    width: 600,
+    height: 500,
+    show: false,
+    backgroundColor: '#1e1e2f',
+    webPreferences: { nodeIntegration: true, contextIsolation: false }
+  });
+  logWindow.loadFile(path.join(__dirname, 'logs.html'));
+  logWindow.once('ready-to-show', () => {
+    logWindow.show();
+    // Send existing logs to window
+    logs.forEach(msg => logWindow.webContents.send('server-log', msg));
+  });
+  logWindow.on('closed', () => { logWindow = null; });
+}
+
+// Get local network IP
 function getLocalIP() {
   const os = require('os');
   const interfaces = os.networkInterfaces();
@@ -133,58 +108,7 @@ function getLocalIP() {
   return '127.0.0.1';
 }
 
-// ------------------------------
-// 🍎 TRAY MENU
-// ------------------------------
-function createTray() {
-  const trayIcon = nativeImage.createFromPath(path.join(__dirname, 'assets', 'tray-iconTemplate.png'));
-  tray = new Tray(trayIcon);
-
-  const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show QR Code', click: openQRWindow },
-    {
-      label: 'Restart Server',
-      click: async () => {
-        await startServer();
-        showNotification(`Server restarted on port ${dynamicPort}`);
-
-        if (qrWindow && !qrWindow.isDestroyed()) {
-          const localIP = getLocalIP();
-          const payload = { ip: localIP, port: dynamicPort, secret: dynamicToken };
-          const qrData = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-          qrWindow.webContents.send('qr-data', {
-            qr: qrData,
-            display: payload
-          });
-        }
-      }
-    },
-    { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() }
-  ]);
-
-  tray.setToolTip('Mac Remote Server');
-  tray.setContextMenu(contextMenu);
-}
-
-// ------------------------------
-// 🔔 Notification helper
-// ------------------------------
-function showNotification(message) {
-  new Notification({ title: 'Mac Remote Server', body: message }).show();
-}
-
-// ------------------------------
-// 🚀 APP LIFECYCLE
-// ------------------------------
-app.on('ready', async () => {
-  createTray();
-  await startServer();
-});
-
-app.on('before-quit', async () => {
-  await stopServer();
-});
-
+// APP LIFECYCLE
+app.on('ready', () => { createTray(); startServer(); });
+app.on('before-quit', () => { if (serverProcess) serverProcess.kill(); });
 app.on('window-all-closed', (e) => e.preventDefault());

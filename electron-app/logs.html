@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Server Logs</title>
+<style>
+  body { background-color: #1e1e2f; color: #0f0; font-family: 'Courier New', monospace; padding: 10px; margin: 0; }
+  #logs { height: 100vh; overflow-y: auto; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="logs"></div>
+<script>
+  const { ipcRenderer } = require('electron');
+  const logsDiv = document.getElementById('logs');
+
+  ipcRenderer.on('server-log', (event, msg) => {
+    logsDiv.textContent += msg + '\n';
+    logsDiv.scrollTop = logsDiv.scrollHeight;
+  });
+</script>
+</body>
+</html>
