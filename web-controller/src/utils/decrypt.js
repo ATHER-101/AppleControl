@@ -1,7 +1,7 @@
 // src/utils/decrypt.js
 import CryptoJS from "crypto-js";
 
-const ENCRYPTION_KEY = "12345678901234567890123456789012"; // same as .env key in Electron app
+const ENCRYPTION_KEY = import.meta.env.VITE_ENCRYPTION_KEY;
 
 export function decryptQRContent(encrypted) {
   try {
