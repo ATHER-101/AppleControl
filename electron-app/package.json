@@ -1,0 +1,43 @@
+{
+  "name": "electron-app",
+  "version": "1.0.0",
+  "description": "Mac Remote Server App",
+  "main": "main.js",
+  "author": "Your Name",
+  "license": "ISC",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac"
+  },
+  "dependencies": {
+    "@jitsi/robotjs": "^0.6.18",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "electron": "^38.2.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.yourname.macremote",
+    "productName": "Mac Remote Server",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns"
+    },
+    "files": [
+      "main.js",
+      "server.js",
+      "index.html",
+      "assets/**/*",
+      "build/**/*",
+      ".env",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

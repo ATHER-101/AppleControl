@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>QR Code</title>
+<style>
+  body {
+    background-color: #1e1e2f;
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+  }
+  h2 {
+    margin: 0 0 20px 0;
+  }
+  #qr {
+    padding: 10px;
+    background: #fff;
+    border-radius: 12px;
+  }
+  #info {
+    margin-top: 20px;
+    background-color: #2e2e3e;
+    padding: 15px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #fff;
+    width: 300px;
+    word-wrap: break-word;
+  }
+</style>
+</head>
+<body>
+<h2>Scan to Connect</h2>
+<canvas id="qr"></canvas>
+<div id="info"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+<script>
+  const { ipcRenderer } = require('electron');
+  const infoDiv = document.getElementById('info');
+  const canvas = document.getElementById('qr');
+
+  ipcRenderer.on('qr-data', (event, data) => {
+    // Render QR code
+    QRCode.toCanvas(canvas, JSON.stringify(data), { width: 250 });
+
+    // Show connection info below QR
+    infoDiv.innerHTML = `
+      <strong>IP:</strong> ${data.ip}<br>
+      <strong>Port:</strong> ${data.port}<br>
+      <strong>Secret:</strong> ${data.secret}
+    `;
+  });
+</script>
+</body>
+</html>
