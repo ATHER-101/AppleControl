@@ -15,18 +15,18 @@ let tray, server, io, qrWindow;
 // ------------------------------
 // 🔐 ENCRYPTION HELPERS
 // ------------------------------
-const ENCRYPTION_KEY = crypto.randomBytes(32);
-const IV = crypto.randomBytes(16);
+const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY || '12345678901234567890123456789012', 'utf8');
 
 function encryptData(data) {
-  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, IV);
+  const iv = crypto.randomBytes(16);
+  const cipher = crypto.createCipheriv('aes-256-cbc', ENCRYPTION_KEY, iv);
   let encrypted = cipher.update(JSON.stringify(data), 'utf8', 'base64');
   encrypted += cipher.final('base64');
-  return `${encrypted}.${IV.toString('base64')}`;
+  return `${encrypted}.${iv.toString('base64')}`;
 }
 
 // ------------------------------
-// ⚙️ LOGGING (only visible in dev console)
+// ⚙️ LOGGING (dev only)
 // ------------------------------
 function log(...args) {
   if (!app.isPackaged) console.log(...args);
@@ -130,7 +130,6 @@ async function startServer() {
 
   expressApp.get('/status', (req, res) => res.json({ ok: true, port: dynamicPort }));
 
-  // 🧠 Try binding the port — fallback if busy
   try {
     await new Promise((resolve, reject) => {
       server.listen(dynamicPort, '0.0.0.0')
@@ -211,7 +210,6 @@ function createTray() {
         await startServer();
         showNotification(`Server restarted on port ${dynamicPort}`);
 
-        // 🔁 Refresh QR window if it's already open
         if (qrWindow && !qrWindow.isDestroyed()) {
           const localIP = getLocalIP();
           const payload = { ip: localIP, port: dynamicPort, secret: dynamicToken };

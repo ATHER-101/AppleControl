@@ -1,3 +1,4 @@
+// src/components/QRScanner.jsx
 import { useEffect, useRef, useState } from "react";
 import QrScanner from "qr-scanner";
 import { decryptQRContent } from "../utils/decrypt";
@@ -22,16 +23,12 @@ export default function QRScanner({ onScan }) {
           setError("Invalid QR data");
         }
       },
-      {
-        preferredCamera: "environment",
-        highlightScanRegion: true,
-      }
+      { preferredCamera: "environment", highlightScanRegion: true }
     );
 
-    scanner.start().then(() => setActive(true)).catch((err) => {
-      console.error(err);
-      setError("Camera access denied or unavailable.");
-    });
+    scanner.start()
+      .then(() => setActive(true))
+      .catch(() => setError("Camera access denied or unavailable."));
 
     return () => scanner.stop();
   }, [onScan]);

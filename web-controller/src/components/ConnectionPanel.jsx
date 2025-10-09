@@ -1,3 +1,4 @@
+// src/components/ConnectionPanel.jsx
 export default function ConnectionPanel({ connected, onConnect, onDisconnect }) {
   return (
     <div className="flex flex-col items-center gap-3 mt-4">

@@ -1,3 +1,4 @@
+// src/hooks/useSocket.js
 import { useState, useEffect } from "react";
 import { io } from "socket.io-client";
 
@@ -27,9 +28,7 @@ export function useSocket(server, token) {
     setSocket(s);
   };
 
-  useEffect(() => {
-    return () => socket?.disconnect();
-  }, [socket]);
+  useEffect(() => () => socket?.disconnect(), [socket]);
 
   return { socket, connected, connect, error, setError };
 }

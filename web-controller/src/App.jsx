@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useState } from "react";
 import { useSocket } from "./hooks/useSocket";
 import QRScanner from "./components/QRScanner";
@@ -8,8 +9,8 @@ import ConnectionPanel from "./components/ConnectionPanel";
 export default function App() {
   const [server, setServer] = useState(null);
   const [token, setToken] = useState(null);
-  const [mode, setMode] = useState("scan"); // "scan" | "control"
-  const [view, setView] = useState("trackpad"); // "trackpad" | "keyboard"
+  const [mode, setMode] = useState("scan");
+  const [view, setView] = useState("trackpad");
 
   const { socket, connected, connect, error, setError } = useSocket(server, token);
 
@@ -24,9 +25,7 @@ export default function App() {
     connect();
   };
 
-  const handleDisconnect = () => {
-    socket?.disconnect();
-  };
+  const handleDisconnect = () => socket?.disconnect();
 
   if (mode === "scan") {
     return (
