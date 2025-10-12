@@ -42,11 +42,9 @@ export default function Keyboard({ socket }) {
     return map[key] || key;
   };
 
-  // --- Key sending logic ---
   const sendKeyTap = (key, activeModifiers = []) => {
     if (!socket || socket.disconnected) return;
 
-    // Handle Caps Lock using Shift
     let modifiers = [...activeModifiers];
     if (capsLockActive && key.match(/^[a-z]$/)) {
       modifiers.push("shift");
@@ -54,11 +52,10 @@ export default function Keyboard({ socket }) {
 
     if (key === "caps_lock") {
       setCapsLockActive(prev => !prev);
-      socket.emit("toggleCapsLock"); // toggle system caps lock
+      socket.emit("toggleCapsLock");
       return;
     }
 
-    // Only treat f1-f12 as special mac keys
     if (/^f([1-9]|1[0-2])$/.test(key)) {
       if (modifiers.includes("fn")) {
         socket.emit("keyTap", key, modifiers);
@@ -79,10 +76,10 @@ export default function Keyboard({ socket }) {
     const next = new Set(lockedModifiers);
     if (state) {
       next.add(key);
-      socket.emit("keyDown", key);
+      if (socket && !socket.disconnected) socket.emit("keyDown", key);
     } else {
       next.delete(key);
-      socket.emit("keyUp", key);
+      if (socket && !socket.disconnected) socket.emit("keyUp", key);
     }
     setLockedModifiers(next);
   };
@@ -93,18 +90,17 @@ export default function Keyboard({ socket }) {
 
     if (type === "down") activeKeyRef.current = normalized;
 
-    // --- Modifier keys ---
     if (modifierKeys.includes(normalized)) {
       const isLocked = lockedModifiers.has(normalized);
 
       if (type === "down") {
         if (isLocked) {
-          toggleModifier(normalized, false); // unlock if tapped again
+          toggleModifier(normalized, false);
           return;
         }
         setPressed(prev => new Set(prev).add(normalized));
         holdTimers.current[normalized] = setTimeout(() => {
-          toggleModifier(normalized, true); // lock if long press
+          toggleModifier(normalized, true);
         }, 500);
         socket.emit("keyDown", normalized);
       } else if (type === "up") {
@@ -115,7 +111,6 @@ export default function Keyboard({ socket }) {
       return;
     }
 
-    // --- Normal keys ---
     if (type === "down") {
       setPressed(prev => new Set(prev).add(normalized));
 
@@ -126,8 +121,9 @@ export default function Keyboard({ socket }) {
 
       sendKeyTap(normalized, activeModifiers);
 
-      // Auto-release temporary modifiers
-      activeModifiers.forEach(mod => socket.emit("keyUp", mod));
+      activeModifiers.forEach(mod => {
+        if (socket && !socket.disconnected) socket.emit("keyUp", mod);
+      });
       setLockedModifiers(new Set());
     } else if (type === "up") {
       queueRelease(normalized);
@@ -142,7 +138,7 @@ export default function Keyboard({ socket }) {
         copy.delete(key);
         return copy;
       });
-    }, 100); // visible highlight for quick taps
+    }, 100);
   };
 
   useEffect(() => {
@@ -161,8 +157,6 @@ export default function Keyboard({ socket }) {
     const normalized = key.toLowerCase();
     const isLocked = lockedModifiers.has(normalized);
     const isPressed = pressed.has(normalized);
-
-    // Caps Lock highlight
     const isCapsActive = key === "caps_lock" && capsLockActive;
 
     const wide =

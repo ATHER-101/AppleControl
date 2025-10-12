@@ -1,18 +1,19 @@
-// src/components/ConnectionPanel.jsx
+import React from "react";
+
 export default function ConnectionPanel({ connected, onConnect, onDisconnect }) {
   return (
-    <div className="flex flex-col items-center gap-3 mt-4">
+    <div className="flex flex-col items-center gap-3 mt-1">
       {!connected ? (
         <button
           onClick={onConnect}
-          className="px-5 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-xl shadow hover:bg-blue-700"
         >
           Connect
         </button>
       ) : (
         <button
           onClick={onDisconnect}
-          className="px-5 py-2 bg-red-600 text-white rounded-xl shadow hover:bg-red-700"
+          className="px-4 py-2 bg-red-600 text-white rounded-xl shadow hover:bg-red-700"
         >
           Disconnect
         </button>

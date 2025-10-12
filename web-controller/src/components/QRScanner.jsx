@@ -9,7 +9,6 @@ const TicketVerifier = () => {
 
   const [qrOn, setQrOn] = useState(true);
   const [scannedResult, setScannedResult] = useState("");
-  const [verificationResult, setVerificationResult] = useState(null);
 
   const onScanSuccess = (result) => {
     setScannedResult(result?.data || "");
@@ -49,27 +48,6 @@ const TicketVerifier = () => {
     }
   }, [qrOn]);
 
-  const verifyTicket = async () => {
-    try {
-      const payload = JSON.parse(scannedResult); // expects { rid, sig }
-
-      const res = await fetch("/api/verification/verify-qr", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (data.valid) {
-        setVerificationResult(`✅ Valid Ticket — RID: ${data.rid}`);
-      } else {
-        setVerificationResult(`❌ Invalid Ticket — ${data.message}`);
-      }
-    } catch (err) {
-      setVerificationResult("❌ Invalid QR format");
-    }
-  };
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
       <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-4">
@@ -100,17 +78,6 @@ const TicketVerifier = () => {
               Verify Ticket
             </button>
           </>
-        )}
-
-        {/* Verification Result */}
-        {verificationResult && (
-          <p
-            className={`mt-4 text-center font-bold text-lg ${
-              verificationResult.startsWith("✅") ? "text-green-600" : "text-red-600"
-            }`}
-          >
-            {verificationResult}
-          </p>
         )}
       </div>
     </div>
