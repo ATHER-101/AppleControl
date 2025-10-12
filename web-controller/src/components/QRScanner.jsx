@@ -1,75 +1,120 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import QrScanner from "qr-scanner";
+import Overlay from "./Overlay";
 
-export default function QRScanner({ onScan }) {
-  const videoRef = useRef(null);
-  const scannerRef = useRef(null);
+const TicketVerifier = () => {
+  const scanner = useRef(null);
+  const videoEl = useRef(null);
+  const qrBoxEl = useRef(null);
 
-  const [active, setActive] = useState(false);
-  const [error, setError] = useState(null);
+  const [qrOn, setQrOn] = useState(true);
   const [scannedResult, setScannedResult] = useState("");
+  const [verificationResult, setVerificationResult] = useState(null);
+
+  const onScanSuccess = (result) => {
+    setScannedResult(result?.data || "");
+    setVerificationResult(null);
+  };
+
+  const onScanFail = (err) => {
+    console.warn(err);
+  };
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    const videoElement = videoEl.current;
 
-    scannerRef.current = new QrScanner(
-      video,
-      (result) => {
-        setScannedResult(result.data);
-        onScan?.(result.data);
-      },
-      {
+    if (videoElement && !scanner.current) {
+      scanner.current = new QrScanner(videoElement, onScanSuccess, {
+        onDecodeError: onScanFail,
         preferredCamera: "environment",
-        highlightScanRegion: true,
-        maxScansPerSecond: 5,
-      }
-    );
-
-    scannerRef.current
-      .start()
-      .then(() => setActive(true))
-      .catch((err) => {
-        console.error("Camera start error:", err);
-        setError("Camera access denied or unavailable.");
+        highlightScanRegion: false,
+        highlightCodeOutline: false,
+        overlay: qrBoxEl.current || undefined,
       });
 
+      scanner.current
+        .start()
+        .then(() => setQrOn(true))
+        .catch(() => setQrOn(false));
+    }
+
     return () => {
-      scannerRef.current?.stop();
-      scannerRef.current = null;
+      scanner.current?.stop();
     };
-  }, [onScan]);
+  }, []);
+
+  useEffect(() => {
+    if (!qrOn) {
+      alert("Camera access blocked. Please allow it in browser settings.");
+    }
+  }, [qrOn]);
+
+  const verifyTicket = async () => {
+    try {
+      const payload = JSON.parse(scannedResult); // expects { rid, sig }
+
+      const res = await fetch("/api/verification/verify-qr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (data.valid) {
+        setVerificationResult(`✅ Valid Ticket — RID: ${data.rid}`);
+      } else {
+        setVerificationResult(`❌ Invalid Ticket — ${data.message}`);
+      }
+    } catch (err) {
+      setVerificationResult("❌ Invalid QR format");
+    }
+  };
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="relative w-80 h-80 rounded-xl overflow-hidden shadow-md">
-        <video
-          ref={videoRef}
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 border-4 border-blue-500 rounded-xl pointer-events-none animate-pulse"></div>
-      </div>
-
-      <p className="text-gray-600">
-        {error
-          ? error
-          : active
-          ? "Scanning QR..."
-          : "Starting camera..."}
-      </p>
-
-      {scannedResult && (
-        <div className="flex flex-col w-80 gap-2">
-          <input
-            type="text"
-            value={scannedResult}
-            readOnly
-            className="w-full p-2 border border-gray-300 rounded-lg text-center text-lg font-mono"
-          />
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-4">
+        {/* QR Scanner Box */}
+        <div
+          className="relative w-full pb-[100%] overflow-hidden rounded-lg bg-black"
+        >
+          <video
+            ref={videoEl}
+            className="absolute top-0 left-0 w-full h-full object-cover"
+          ></video>
+          <Overlay />
         </div>
-      )}
+
+        {/* Scanned Data */}
+        {scannedResult && (
+          <>
+            <input
+              type="text"
+              value={scannedResult}
+              readOnly
+              className="mt-4 w-full border border-gray-300 rounded-lg p-2 text-lg"
+            />
+            <button
+              onClick={verifyTicket}
+              className="mt-2 w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700"
+            >
+              Verify Ticket
+            </button>
+          </>
+        )}
+
+        {/* Verification Result */}
+        {verificationResult && (
+          <p
+            className={`mt-4 text-center font-bold text-lg ${
+              verificationResult.startsWith("✅") ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {verificationResult}
+          </p>
+        )}
+      </div>
     </div>
   );
-}
+};
+
+export default TicketVerifier;
